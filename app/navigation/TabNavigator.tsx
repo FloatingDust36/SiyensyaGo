@@ -8,8 +8,7 @@ import { RootTabParamList } from './types';
 
 import CameraScreen from '../screens/CameraScreen';
 import MuseumScreen from '../screens/MuseumScreen';
-
-const ProfileScreen = () => null;
+import ProfileScreen from '../screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
@@ -40,7 +39,7 @@ export default function TabNavigator() {
             />
             <Tab.Screen
                 name="Camera"
-                component={CameraScreen} // 3. THIS NOW USES THE REAL SCREEN
+                component={CameraScreen}
                 options={{
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="camera" color={color} size={size * 1.2} />
