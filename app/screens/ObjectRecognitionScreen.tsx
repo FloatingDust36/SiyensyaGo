@@ -13,7 +13,7 @@ import { colors, fonts } from '../theme/theme';
 type ObjectRecognitionScreenRouteProp = RouteProp<RootStackParamList, 'ObjectRecognition'>;
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
-// Define a type for our AI's response
+// 1. Define a type for our AI's response
 type AnalysisResult = {
     name: string;
     confidence: number;
@@ -32,7 +32,7 @@ export default function ObjectRecognitionScreen() {
 
     // State to manage the analysis process
     const [status, setStatus] = useState<'analyzing' | 'finished'>('analyzing');
-    const [result, setResult] = useState<{ name: string; confidence: number } | null>(null);
+    const [result, setResult] = useState<AnalysisResult | null>(null);
 
     // This useEffect will run once to call our REAL AI function
     useEffect(() => {
