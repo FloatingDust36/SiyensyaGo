@@ -40,21 +40,35 @@ serve(async (req) => {
       throw new Error("Missing GEMINI_API_KEY")
     }
     const genAI = new GoogleGenerativeAI(API_KEY)
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' })
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' })
 
     // 3. Call the Gemini API
     const result = await model.generateContent([PROMPT, ...image_parts])
     const response = await result.response
     const text = response.text()
 
-    // 4. Return the result to the mobile app
-    return new Response(text, {
+    // Log the raw response from Google so we can always see it, for debugging. Comment out in production if you want.
+    // console.log("Raw response from Gemini:", text);
+
+    // Intelligently find the start and end of the JSON object
+    const startIndex = text.indexOf('{');
+    const endIndex = text.lastIndexOf('}');
+    
+    if (startIndex === -1 || endIndex === -1) {
+      throw new Error("Could not find a valid JSON object in the AI response.");
+    }
+
+    const jsonString = text.substring(startIndex, endIndex + 1);
+
+    const jsonResponse = JSON.parse(jsonString);
+
+    return new Response(JSON.stringify(jsonResponse), {
       headers: { 'Content-Type': 'application/json' },
       status: 200,
     })
   } catch (error) {
     // Handle any errors
-    console.error(error)
+    console.error("Caught an error:", error)
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { 'Content-Type': 'application/json' },
       status: 500,

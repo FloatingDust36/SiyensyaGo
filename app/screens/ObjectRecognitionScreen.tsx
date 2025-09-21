@@ -1,15 +1,27 @@
 // In app/screens/ObjectRecognitionScreen.tsx
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { supabase } from '../lib/supabase'; // Import our Supabase client
 import { RootStackParamList } from '../navigation/types';
 import { colors, fonts } from '../theme/theme';
 
 type ObjectRecognitionScreenRouteProp = RouteProp<RootStackParamList, 'ObjectRecognition'>;
 type NavigationProp = StackNavigationProp<RootStackParamList>;
+
+// Define a type for our AI's response
+type AnalysisResult = {
+    name: string;
+    confidence: number;
+    quick_fact: string;
+    the_science_in_action: string;
+    why_it_matters_to_you: string;
+    explore_further: string;
+};
 
 export default function ObjectRecognitionScreen() {
     // Use the hook to get route information
@@ -22,17 +34,38 @@ export default function ObjectRecognitionScreen() {
     const [status, setStatus] = useState<'analyzing' | 'finished'>('analyzing');
     const [result, setResult] = useState<{ name: string; confidence: number } | null>(null);
 
-    // This useEffect will run once to simulate the AI call
+    // This useEffect will run once to call our REAL AI function
     useEffect(() => {
-        const timer = setTimeout(() => {
-            // After 2.5 seconds, set a mock result and change the status
-            setResult({ name: 'BASKETBALL', confidence: 94 });
-            setStatus('finished');
-        }, 2500); // 2500 milliseconds = 2.5 seconds
+        const analyzeImage = async () => {
+            try {
+                // 2. Compress and resize the image first
+                const manipulatedImage = await ImageManipulator.manipulateAsync(
+                    imageUri,
+                    [{ resize: { width: 1080 } }], // Resize the image to a max width of 1080px
+                    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true } // Compress and get base64
+                );
 
-        // Cleanup function to clear the timer if the user navigates away
-        return () => clearTimeout(timer);
-    }, []);
+                // 3. Call our Supabase function with the SMALLER, compressed image data
+                const { data, error } = await supabase.functions.invoke('analyze-image', {
+                    body: {
+                        image: manipulatedImage.base64, // Use the base64 string from the compressed image
+                        contentType: 'image/jpeg'
+                    },
+                });
+
+                if (error) throw error;
+
+                setResult(data);
+                setStatus('finished');
+            } catch (error) {
+                console.error("Error analyzing image:", error);
+                Alert.alert("Analysis Failed", "Could not get a result from the AI. Please try again.");
+                navigation.goBack();
+            }
+        };
+
+        analyzeImage();
+    }, [imageUri]);
 
     const handleAccept = () => {
         if (result) {
