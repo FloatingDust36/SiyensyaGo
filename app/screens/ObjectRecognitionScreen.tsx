@@ -9,6 +9,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from '../lib/supabase'; // Import our Supabase client
 import { RootStackParamList } from '../navigation/types';
 import { colors, fonts } from '../theme/theme';
+import { toByteArray } from 'base64-js'; // for decoding the base64 image for upload
 
 type ObjectRecognitionScreenRouteProp = RouteProp<RootStackParamList, 'ObjectRecognition'>;
 type NavigationProp = StackNavigationProp<RootStackParamList>;
@@ -34,38 +35,90 @@ export default function ObjectRecognitionScreen() {
     const [status, setStatus] = useState<'analyzing' | 'finished'>('analyzing');
     const [result, setResult] = useState<AnalysisResult | null>(null);
 
-    // This useEffect will run once to call our REAL AI function
+    // This useEffect will run once to call our AI function
     useEffect(() => {
-        const analyzeImage = async () => {
+        const analyzeAndSaveImage = async () => {
             try {
-                // 2. Compress and resize the image first
+                // Compress and resize the image first
                 const manipulatedImage = await ImageManipulator.manipulateAsync(
                     imageUri,
                     [{ resize: { width: 1080 } }], // Resize the image to a max width of 1080px
                     { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true } // Compress and get base64
                 );
 
-                // 3. Call our Supabase function with the SMALLER, compressed image data
-                const { data, error } = await supabase.functions.invoke('analyze-image', {
+                if (!manipulatedImage.base64) {
+                    throw new Error("Failed to get base64 from image.");
+                }
+
+                // Call our Supabase function with the smaller, compressed image data
+                const { data: analysisData, error: analysisError } = await supabase.functions.invoke('analyze-image', {
                     body: {
                         image: manipulatedImage.base64, // Use the base64 string from the compressed image
                         contentType: 'image/jpeg'
                     },
                 });
 
-                if (error) throw error;
+                if (analysisError) throw analysisError;
 
-                setResult(data);
+                setResult(analysisData);
                 setStatus('finished');
+
+                // save to databse
+                // This runs in the background after the result is shown to the user
+                saveDiscovery(manipulatedImage.base64, analysisData);
             } catch (error) {
-                console.error("Error analyzing image:", error);
+                console.error("Error in analysis or saving process:", error);
                 Alert.alert("Analysis Failed", "Could not get a result from the AI. Please try again.");
                 navigation.goBack();
             }
         };
 
-        analyzeImage();
-    }, [imageUri]);
+        const saveDiscovery = async (base64: string, analysisData: AnalysisResult) => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.user) throw new Error("User not logged in.");
+
+                const userId = session.user.id;
+                const filePath = `${userId}/${new Date().getTime()}.jpeg`;
+
+                // Decode the base64 string into a byte array
+                const byteArray = toByteArray(base64);
+
+                // Upload to Supabase Storage
+                const { error: uploadError } = await supabase.storage
+                    .from('discoveries')
+                    .upload(filePath, byteArray, { contentType: 'image/jpeg' });
+
+                if (uploadError) throw uploadError;
+
+                // Get the public URL of the uploaded image
+                const { data: { publicUrl } } = supabase.storage
+                    .from('discoveries')
+                    .getPublicUrl(filePath);
+
+                // Insert into the 'discoveries' database table
+                const { error: insertError } = await supabase.from('discoveries').insert({
+                    image_url: publicUrl,
+                    name: analysisData.name,
+                    confidence: analysisData.confidence,
+                    quick_fact: analysisData.quick_fact,
+                    the_science_in_action: analysisData.the_science_in_action,
+                    why_it_matters_to_you: analysisData.why_it_matters_to_you,
+                    explore_further: analysisData.explore_further,
+                });
+
+                if (insertError) throw insertError;
+
+                console.log('Discovery saved successfully!');
+            } catch (error) {
+                console.error('Error saving discovery:', error);
+                // We don't show an alert here because the user can already see the content.
+                // This is a background task.
+            }
+        };
+
+        analyzeAndSaveImage();
+    }, [imageUri, navigation]);
 
     const handleAccept = () => {
         if (result) {
@@ -132,6 +185,7 @@ const styles = StyleSheet.create({
     },
     resultName: {
         fontFamily: fonts.heading,
+        textAlign: 'center',
         color: colors.text,
         fontSize: 40,
     },

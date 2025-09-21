@@ -7,8 +7,8 @@ import { colors } from '../theme/theme';
 import { RootTabParamList } from './types';
 
 import CameraScreen from '../screens/CameraScreen';
+import MuseumScreen from '../screens/MuseumScreen';
 
-const MuseumScreen = () => null;
 const ProfileScreen = () => null;
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
