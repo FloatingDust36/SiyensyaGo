@@ -10,6 +10,8 @@ export const colors = {
     success: '#39FF14',     // Signal Green
     warning: '#FF4500',      // Plasma Orange
     lightGray: '#a9a9a9',
+    accent: '#FF00FF',      // Highlight Magenta
+    cardBackground: '#1A1D2A', // Card Background
 };
 
 export const fonts = {
